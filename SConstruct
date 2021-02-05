@@ -68,6 +68,8 @@ env_base.use_ptrcall = False
 env_base.module_version_string = ""
 env_base.msvc = False
 
+env_base.ParseConfig("pkg-config uuid --cflags --libs")
+
 # avoid issues when building with different versions of python out of the same directory
 env_base.SConsignFile(".sconsign{0}.dblite".format(pickle.HIGHEST_PROTOCOL))
 
@@ -115,6 +117,9 @@ opts = Variables([], ARGUMENTS)
 
 opts.Add(EnumVariable("target", "Compilation target", "debug", ("debug", "release_debug", "release")))
 
+opts.Add("folders", "App folders to compile", "")
+opts.Add("main_file", "The main file", "")
+
 # Compilation environment setup
 opts.Add("CXX", "C++ compiler")
 opts.Add("CC", "C compiler")
@@ -124,16 +129,40 @@ opts.Add("CFLAGS", "Custom flags for the C compiler")
 opts.Add("CXXFLAGS", "Custom flags for the C++ compiler")
 opts.Add("LINKFLAGS", "Custom flags for the linker")
 
+opts.Update(env_base)
+
 # add default include paths
-env_base.Prepend(CPPPATH=["#", "libs"])
+env_base.Prepend(CPPPATH=["#"])
 env_base.Prepend(CPPPATH=["#libs"])
+env_base.Prepend(CPPPATH=["#libs/trantor"])
+env_base.Prepend(CPPPATH=["#libs/trantor/trantor/net"])
+env_base.Prepend(CPPPATH=["#libs/trantor/trantor/net/inner"])
+env_base.Prepend(CPPPATH=["#libs/trantor/trantor/utils"])
 env_base.Prepend(LINKFLAGS=["-lpthread"])
 
+env_base.Append(CXX=["-std=c++17"])
 env_base.Append(CXX=["-o3"])
+#env_base.Append(CXX=["-g"])
 #env_base.Append(CXX=["-g2"])
 
+# Compilation DB requires SCons 3.1.1+.
+from SCons import __version__ as scons_raw_version
+
+scons_ver = env_base._get_major_minor_revision(scons_raw_version)
+
+if scons_ver >= (4, 0, 0):
+    env_base.Tool("compilation_db")
+
+
 env = env_base.Clone()
+
+if scons_ver >= (4, 0, 0):
+    env.Tool("compilation_db")
+    env.Alias("compiledb", env_base.CompilationDatabase())
+
 Export("env")
+
+SConscript("libs/trantor/SCsub")
 SConscript("core/SCsub")
 
 for d in database_list:
@@ -144,14 +173,9 @@ for d in database_list:
 
     env_db = env_base.Clone()
 
-    # Compilation DB requires SCons 3.1.1+.
-    from SCons import __version__ as scons_raw_version
-
-    scons_ver = env_db._get_major_minor_revision(scons_raw_version)
-
     if scons_ver >= (4, 0, 0):
         env_db.Tool("compilation_db")
-        env_db.Alias("compiledb", env.CompilationDatabase())
+        env_db.Alias("compiledb", env_base.CompilationDatabase())
 
     detect.configure(env_db)
     detect.configure(env)
@@ -178,7 +202,7 @@ for m in module_list:
 
     if scons_ver >= (4, 0, 0):
         env_mod.Tool("compilation_db")
-        env_mod.Alias("compiledb", env.CompilationDatabase())
+        env_mod.Alias("compiledb", env_base.CompilationDatabase())
 
     detect.configure(env_mod)
     detect.configure(env)
@@ -190,9 +214,29 @@ for m in module_list:
     sys.path.remove(tmppath)
     sys.modules.pop("detect")
 
-env.prg_sources = [ "rdn_application.cpp" ]
+
+folders = env_base["folders"].split(";")
+
+files = []
+
+for fol in folders:
+    folt = fol.strip()
+
+    if folt == "":
+        continue
+
+    ff = os.listdir(folt)
+
+    for f in ff:
+        if f.endswith("cpp"):
+            files.append(os.path.abspath(fol + "/" + f))
+            #files.append(fol + "/" + f)
+
+env.prg_sources = files
 libapp = env.add_library("application", env.prg_sources)
 env.Prepend(LIBS=[libapp])
 
-prog = env.add_program("#bin/server", ["main.cpp"])
+
+mfp = os.path.abspath(env_base["main_file"])
+prog = env.add_program("#bin/server", [ mfp ])
 

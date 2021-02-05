@@ -22,6 +22,10 @@ public:
 	HTMLTag *name(const std::string &val);
 	HTMLTag *method(const std::string &val);
 	HTMLTag *type(const std::string &val);
+	HTMLTag *rel(const std::string &val);
+	HTMLTag *rel_stylesheet();
+	HTMLTag *charset(const std::string &val);
+	HTMLTag *charset_utf_8();
 
 	HTMLTag *attrib(const std::string &attr, const std::string &val);
 
