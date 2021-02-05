@@ -1,0 +1,8 @@
+
+bin/**
+*.dblite
+*.o
+*.a
+*.pyc
+
+settings.json
